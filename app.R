@@ -12,19 +12,17 @@ library(ggthemes)
 library(ggiraph)
 library(wikifacts)
 library(cowsay)
-library(biomaRt)
 df <- read_excel("nerd ass data - Copy.xlsx", 
                  sheet = "Sheet1") #import data frame
-gathered_df <- gather(df,"VNormalized","5dGestNormalized","10dGestNormalized","15dGestNormalized","0dLacNormalized","5dLacNormalized","10dLacNormalized","12hInvNormalized","24hInvNormalized","48hInvNormalized","72hInvNormalized","96hInvNormalized",
+gathered_df_1 <- gather(df,"VNormalized","5dGestNormalized","10dGestNormalized","15dGestNormalized","0dLacNormalized","5dLacNormalized","10dLacNormalized","12hInvNormalized","24hInvNormalized","48hInvNormalized","72hInvNormalized","96hInvNormalized",
                       key = "timepoint",
                       value = "expression") #tidies data by gathering needeed columns
+gathered_df_2 <- gather(df, "lac/12","lac/24","lac/48","lac/72", key = "fctimepoint", value = "fcvalue")
+
 level_order <- c("VNormalized","5dGestNormalized","10dGestNormalized","15dGestNormalized",
                  "0dLacNormalized","5dLacNormalized","10dLacNormalized","12hInvNormalized",
                  "24hInvNormalized","48hInvNormalized","72hInvNormalized","96hInvNormalized") #used for the ggplot to order the x axis correctly
 
-ensembl <- useEnsembl(biomart = "genes")
-
-mart <- useMart("ensembl", dataset = "mmusculus_gene_ensembl", host = "https://www.ensembl.org") #stuff for GO terms
 
 # Define UI
 ui <- page_sidebar(
@@ -33,9 +31,9 @@ ui <- page_sidebar(
     selectInput(
       "gene",
       label = "Select a gene!",
-      choices = distinct(gathered_df,Common) #sidebar code
+      choices = distinct(gathered_df_1,Common) #sidebar code
     ),
-    helpText("If a graph has multiple lines, this means the selected gene has multiple entries in the microarray 
+    helpText("If a graph has multiple lines or looks a bit strange, this means the selected gene has multiple entries in the microarray 
              dataset. I tried to fix it the best I could by grouping results by their GenBank accession number, but that didn't always work."),
     helpText(htmlOutput("keytext")) #displays the text explaining abbreviations
   ),
@@ -47,12 +45,22 @@ ui <- page_sidebar(
     ),
     nav_panel( #second tab outputs gene information
       title = "Gene Information",
-      verbatimTextOutput("wikiinfo"),
-      "GO goes here",
+      card(
+        textOutput("selected_gene_description"),
+        verbatimTextOutput("wikiinfo"),
+      "If nothing shows up or you get an error, you'll have to google it :(",
+      )
     ),
-    nav_panel( #third tab outputs fold change data
+    nav_panel(#third tab outputs fold change data
       title = "Fold change",
-      "dropdown here for selected timepoint"
+      card(
+        height = 250,
+      selectInput(
+        "timepoint",
+        label = "Select a timepoint!",
+        choices = distinct(gathered_df_2,fctimepoint)),
+      textOutput("selected_timepoint_text")
+      ),
     ),
     footer = "Made by Jinx Foggon for his MSci project! :3c", #credits me :3c
   ),
@@ -61,15 +69,26 @@ ui <- page_sidebar(
 # Define server logic
 server <- function(input, output) {
   selected_gene_data <- reactive({
-    gathered_df %>% filter(Common == input$gene)
+    gathered_df_1 %>% filter(Common == input$gene)
   })#filters the dataset reactively based on the input gene selected
   
   genename_cap <- reactive({
-    str_to_upper(input$gene)
+    str_to_upper(gsub("[;].*]","",input$gene))
   }) #makes the genename uppercase to mimic human gene nomenclature for wikipedia searching of genes
+  #add the regex filtering here (see comments line 78 onwards)
+  
+  selected_tp_data <- reactive({
+    gathered_df_2 %>% filter(fctimepoint == input$timepoint, Common == input$gene)
+  }) #filter function for the fold change value
   
   output$selected_gene <- renderText(paste(input$gene,"Expression Levels")) #titles the first tab with the gene name
   
+  output$selected_timepoint <- renderText(paste(selected_tp_data()$fcvalue))
+  
+  output$selected_timepoint_text <- renderText(paste("At the timepoint", input$timepoint, "the relative fold change in gene expression is", selected_tp_data()$fcvalue[1] ))
+    
+  output$selected_gene_description <- renderText(paste((selected_gene_data()$Description[1])))
+    
   output$keytext <- renderUI({
     HTML(paste("Key:","V = Virgin","Gest = Gestating","Lac = Lactating","Inv = Involution", sep = "<br/>"))
   }) #had to use HTML to wrap the text properly
@@ -78,6 +97,11 @@ server <- function(input, output) {
     say(wiki_define(genename_cap()),by = "cat", type = "string")
   }) #the most pointless three hours of my life.
   #generates ascii art of a cat saying the gene informaition from wikipedia
+  #potential fix later: wiki searching renders an error more times than not, 
+  #need to exclude anything after ';' or ':' for genes with multiple names
+  #add a regex function to filter the entry before its passed into wiki_define
+  #so only the first gene is passed through
+  #also figure out what the true/false error is :(
   
   output$wikiinfo <- renderText({
     paste(ascii(), collapse = "\n")
@@ -108,3 +132,4 @@ server <- function(input, output) {
 
 # Run the stupid application 
 shinyApp(ui = ui, server = server)
+
