@@ -15,8 +15,8 @@ library(cowsay)
 df <- read_excel("nerd ass data - Copy.xlsx", 
                  sheet = "Sheet1") #import data frame
 gathered_df_1 <- gather(df,"VNormalized","5dGestNormalized","10dGestNormalized","15dGestNormalized","0dLacNormalized","5dLacNormalized","10dLacNormalized","12hInvNormalized","24hInvNormalized","48hInvNormalized","72hInvNormalized","96hInvNormalized",
-                      key = "timepoint",
-                      value = "expression") #tidies data by gathering needeed columns
+                        key = "timepoint",
+                        value = "expression") #tidies data by gathering needeed columns
 gathered_df_2 <- gather(df, "lac/12","lac/24","lac/48","lac/72", key = "fctimepoint", value = "fcvalue")
 
 level_order <- c("VNormalized","5dGestNormalized","10dGestNormalized","15dGestNormalized",
@@ -41,25 +41,29 @@ ui <- page_sidebar(
   navset_pill( #makes it tabbed
     nav_panel( # first tab  outputs lineplot
       title = textOutput("selected_gene"),
+      card(
+        height = 600,
+        width = 200,
       girafeOutput("linePlot"),
+      )
     ),
     nav_panel( #second tab outputs gene information
       title = "Gene Information",
       card(
         textOutput("selected_gene_description"),
         verbatimTextOutput("wikiinfo"),
-      "If nothing shows up or you get an error, you'll have to google it :(",
+        "If nothing shows up or you get an error, you'll have to google it :(",
       )
     ),
     nav_panel(#third tab outputs fold change data
       title = "Fold change",
       card(
         height = 250,
-      selectInput(
-        "timepoint",
-        label = "Select a timepoint!",
-        choices = distinct(gathered_df_2,fctimepoint)),
-      textOutput("selected_timepoint_text")
+        selectInput(
+          "timepoint",
+          label = "Select a timepoint!",
+          choices = distinct(gathered_df_2,fctimepoint)),
+        textOutput("selected_timepoint_text")
       ),
     ),
     footer = "Made by Jinx Foggon for his MSci project! :3c", #credits me :3c
@@ -86,9 +90,9 @@ server <- function(input, output) {
   output$selected_timepoint <- renderText(paste(selected_tp_data()$fcvalue))
   
   output$selected_timepoint_text <- renderText(paste("At the timepoint", input$timepoint, "the relative fold change in gene expression is", selected_tp_data()$fcvalue[1] ))
-    
+  
   output$selected_gene_description <- renderText(paste((selected_gene_data()$Description[1])))
-    
+  
   output$keytext <- renderUI({
     HTML(paste("Key:","V = Virgin","Gest = Gestating","Lac = Lactating","Inv = Involution", sep = "<br/>"))
   }) #had to use HTML to wrap the text properly
@@ -109,7 +113,7 @@ server <- function(input, output) {
   
   output$linePlot <- renderGirafe({ #worlds messiest graph code
     gg_point <- ggplot(selected_gene_data(), aes(x = factor(timepoint, levels = level_order), y = expression, tooltip = expression, data_id = expression )) +
-      geom_line(aes(group = Genbank), color = "#F5A9B8", size = 1.5) + #draws the stupid line
+      geom_line(aes(group = affy_mg_u74av2), color = "#F5A9B8", size = 1.5) + #draws the stupid line
       geom_point_interactive(size = 2.5,shape = 16) + #draws the stupid point
       ylim(0,NA)+
       labs(x = "Timepoint", y = "Expression Levels") + 
@@ -132,4 +136,6 @@ server <- function(input, output) {
 
 # Run the stupid application 
 shinyApp(ui = ui, server = server)
+
+
 
